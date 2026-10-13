@@ -119,8 +119,7 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  win.addBrowserView(tgView)
-  updateViewBounds()
+  // tgView will be added when proxy connection is established or user is connected
   tgView.webContents.loadURL(TG_URL).catch(() => undefined)
 
   // Forward clicks on notifications or telegram links to focus window
@@ -255,8 +254,11 @@ function toggleSettings(open?: boolean): void {
   if (isSettingsOpen) {
     mainWindow.removeBrowserView(tgView)
   } else {
-    mainWindow.addBrowserView(tgView)
-    updateViewBounds()
+    // Only mount tgView if connection is connected (or user explicitly closes settings)
+    if (conn.getStatus().state === 'connected') {
+      mainWindow.addBrowserView(tgView)
+      updateViewBounds()
+    }
   }
   mainWindow.webContents.send('settings:toggle', isSettingsOpen)
 }
@@ -285,8 +287,15 @@ async function bootstrap(): Promise<void> {
   conn.on('status', (s) => {
     mainWindow?.webContents.send('status:update', s)
     if (s.state === 'connected') {
-      // Reload TG web when proxy connects successfully so it doesn't stay on error page
+      if (!isSettingsOpen && mainWindow && tgView) {
+        mainWindow.addBrowserView(tgView)
+        updateViewBounds()
+      }
       tgView?.webContents.loadURL(TG_URL).catch(() => undefined)
+    } else {
+      if (!isSettingsOpen && mainWindow && tgView) {
+        mainWindow.removeBrowserView(tgView)
+      }
     }
   })
   logger.on('log', (entry) => {
@@ -297,10 +306,14 @@ async function bootstrap(): Promise<void> {
   tray = new TrayController(mainWindow, conn, logger)
   tray.init()
 
-  const settings = store.getSettings()
-  if (settings.autoConnect) {
-    const last = store.getLastProfileId()
-    if (last) void conn.connect(last)
+  const lastProfile = store.getLastProfileId()
+  if (lastProfile) {
+    void conn.connect(lastProfile)
+  } else if (store.listProfiles().length > 0) {
+    void conn.connect(store.listProfiles()[0].id)
+  } else {
+    // If no profiles exist yet, open settings overlay automatically
+    toggleSettings(true)
   }
 }
 

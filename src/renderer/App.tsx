@@ -152,7 +152,7 @@ export function App(): JSX.Element {
       </header>
 
       {/* Settings / Logs Overlay Panel */}
-      {isOverlayOpen && (
+      {isOverlayOpen ? (
         <div
           style={{
             flex: 1,
@@ -204,6 +204,58 @@ export function App(): JSX.Element {
             {tab === 'logs' && <Logs logs={logs} />}
           </main>
         </div>
+      ) : (
+        status.state !== 'connected' && (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#0e1621',
+              color: '#8291a0',
+              padding: 24,
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: 40, marginBottom: 12 }}>
+              {status.state === 'connecting' ? '⏳' : status.state === 'error' ? '⚠️' : '🛡️'}
+            </div>
+            <h2 style={{ color: '#fff', margin: '0 0 8px 0', fontSize: 18 }}>
+              {status.state === 'connecting'
+                ? 'Connecting to Xray proxy…'
+                : status.state === 'error'
+                  ? 'Connection Error'
+                  : 'Proxy Disconnected'}
+            </h2>
+            <p style={{ maxWidth: 450, margin: '0 0 16px 0', fontSize: 13, lineHeight: '20px' }}>
+              {status.state === 'connecting'
+                ? 'Setting up encrypted tunnel. Telegram Web will load automatically.'
+                : status.state === 'error'
+                  ? (status.message || 'Failed to establish connection. Check proxy settings or server availability.')
+                  : profiles.length === 0
+                    ? 'No Xray proxy profile configured yet. Add your VLESS/Reality link to get started.'
+                    : 'Telegram traffic is blocked or direct access is unavailable. Connect to a proxy profile to access Telegram.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {profiles.length > 0 && status.state !== 'connecting' && (
+                <button
+                  style={{ background: '#27ae60', color: '#fff', padding: '8px 18px', fontWeight: 600 }}
+                  onClick={() => void window.tgxray.reconnect().then(setStatus)}
+                >
+                  ⚡ Connect Now
+                </button>
+              )}
+              <button
+                style={{ background: '#5288c1', color: '#fff', padding: '8px 18px', fontWeight: 600 }}
+                onClick={() => void handleToggleSettings(true)}
+              >
+                ⚙ Open Proxy Settings
+              </button>
+            </div>
+          </div>
+        )
       )}
     </div>
   )
