@@ -18,6 +18,7 @@ export function App(): JSX.Element {
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
   const [status, setStatus] = useState<StatusPayload>({ state: 'disconnected' })
   const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [appVersion, setAppVersion] = useState<string>('')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfoPayload>({ status: 'idle' })
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -30,6 +31,7 @@ export function App(): JSX.Element {
     void refreshProfiles()
     void window.tgxray.getSettings().then(setSettings)
     void window.tgxray.getLogs().then(setLogs)
+    void window.tgxray.getAppVersion().then(setAppVersion)
 
     const offStatus = window.tgxray.onStatus(setStatus)
     const offLog = window.tgxray.onLog((entry) =>
@@ -87,7 +89,12 @@ export function App(): JSX.Element {
             boxShadow: `0 0 6px ${stateDot(status.state)}`
           }}
         />
-        <strong style={{ fontSize: 13, color: '#fff' }}>Telegram Xray</strong>
+        <strong style={{ fontSize: 13, color: '#fff' }}>Telegram Web</strong>
+        {appVersion && (
+          <span style={{ fontSize: 11, opacity: 0.6, background: '#242f3d', padding: '1px 5px', borderRadius: 4 }}>
+            v{appVersion}
+          </span>
+        )}
         {unreadCount > 0 && (
           <span
             style={{

@@ -14,6 +14,8 @@ export class AppUpdater {
     // Configure electron-updater
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.allowPrerelease = true
+    autoUpdater.allowDowngrade = false
 
     autoUpdater.logger = {
       info: (msg: unknown) => this.logger.info('app', `[updater] ${String(msg)}`),

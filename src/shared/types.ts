@@ -68,6 +68,7 @@ export interface IpcApi {
   readClipboard: () => Promise<string>
   toggleSettings: (open?: boolean) => Promise<boolean>
   reloadTg: () => Promise<void>
+  getAppVersion: () => Promise<string>
   checkForUpdates: () => Promise<UpdateInfoPayload>
   installUpdate: () => Promise<void>
   onStatus: (cb: (s: StatusPayload) => void) => () => void

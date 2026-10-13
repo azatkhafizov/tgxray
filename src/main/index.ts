@@ -93,12 +93,15 @@ function createMainWindow(): BrowserWindow {
   // Remove top application menu (File, Edit, View, Window, Help)
   Menu.setApplicationMenu(null)
 
+  const appVersion = app.getVersion()
+  const baseTitle = `Telegram Web v${appVersion}`
+
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 900,
     minHeight: 600,
-    title: 'Telegram Desktop (Xray)',
+    title: baseTitle,
     icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
@@ -107,6 +110,11 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true
     }
+  })
+
+  // Prevent internal pages or sub-views from overriding the window title
+  win.on('page-title-updated', (e) => {
+    e.preventDefault()
   })
 
   win.setMenuBarVisibility(false)
@@ -288,6 +296,9 @@ async function bootstrap(): Promise<void> {
   })
   ipcMain.handle('app:reload-tg', () => {
     tgView?.webContents.reload()
+  })
+  ipcMain.handle('app:version', () => {
+    return app.getVersion()
   })
   ipcMain.handle('app:check-updates', () => {
     return updater.checkForUpdates()

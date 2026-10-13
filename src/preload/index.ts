@@ -17,6 +17,7 @@ const api: IpcApi = {
   readClipboard: () => ipcRenderer.invoke('clipboard:read'),
   toggleSettings: (open?: boolean) => ipcRenderer.invoke('app:toggle-settings', open),
   reloadTg: () => ipcRenderer.invoke('app:reload-tg'),
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-updates'),
   installUpdate: () => ipcRenderer.invoke('app:install-update'),
   onStatus: (cb: (s: StatusPayload) => void) => {
