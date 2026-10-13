@@ -43,6 +43,15 @@ export interface StatusPayload {
   httpPort?: number
 }
 
+export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'
+
+export interface UpdateInfoPayload {
+  status: UpdateStatus
+  version?: string
+  progress?: number
+  error?: string
+}
+
 export interface IpcApi {
   listProfiles: () => Promise<Profile[]>
   addProfile: (input: { name: string; source: 'link' | 'file'; link: string }) => Promise<Profile>
@@ -59,8 +68,11 @@ export interface IpcApi {
   readClipboard: () => Promise<string>
   toggleSettings: (open?: boolean) => Promise<boolean>
   reloadTg: () => Promise<void>
+  checkForUpdates: () => Promise<UpdateInfoPayload>
+  installUpdate: () => Promise<void>
   onStatus: (cb: (s: StatusPayload) => void) => () => void
   onLog: (cb: (e: LogEntry) => void) => () => void
   onToggleSettings: (cb: (isOpen: boolean) => void) => () => void
   onUnreadCount: (cb: (count: number) => void) => () => void
+  onUpdateStatus: (cb: (info: UpdateInfoPayload) => void) => () => void
 }

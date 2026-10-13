@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AppSettings, LogEntry, Profile, StatusPayload } from '@shared/types'
+import type { AppSettings, LogEntry, Profile, StatusPayload, UpdateInfoPayload } from '@shared/types'
 import { Profiles } from './profiles/Profiles'
 import { Settings } from './settings/Settings'
 import { Logs } from './logs/Logs'
@@ -18,6 +18,7 @@ export function App(): JSX.Element {
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
   const [status, setStatus] = useState<StatusPayload>({ state: 'disconnected' })
   const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfoPayload>({ status: 'idle' })
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -40,12 +41,16 @@ export function App(): JSX.Element {
     const offUnread = window.tgxray.onUnreadCount((count) => {
       setUnreadCount(count)
     })
+    const offUpdate = window.tgxray.onUpdateStatus((info) => {
+      setUpdateInfo(info)
+    })
 
     return () => {
       offStatus()
       offLog()
       offToggle()
       offUnread()
+      offUpdate()
     }
   }, [])
 
@@ -105,6 +110,28 @@ export function App(): JSX.Element {
         </span>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {updateInfo.status === 'downloaded' && (
+            <button
+              style={{ fontSize: 12, padding: '4px 10px', background: '#9b59b6', color: '#fff', fontWeight: 600 }}
+              onClick={() => void window.tgxray.installUpdate()}
+              title="Restart app to apply downloaded update"
+            >
+              🚀 Install v{updateInfo.version}
+            </button>
+          )}
+
+          {updateInfo.status === 'downloading' && (
+            <span style={{ fontSize: 12, color: '#f1c40f', background: '#242f3d', padding: '3px 8px', borderRadius: 4 }}>
+              Downloading update: {updateInfo.progress ?? 0}%
+            </span>
+          )}
+
+          {updateInfo.status === 'available' && (
+            <span style={{ fontSize: 12, color: '#3498db' }}>
+              Update v{updateInfo.version} found…
+            </span>
+          )}
+
           <button
             style={{ fontSize: 12, padding: '4px 10px' }}
             onClick={() => void window.tgxray.reloadTg()}
@@ -199,7 +226,7 @@ export function App(): JSX.Element {
               />
             )}
             {tab === 'settings' && settings && (
-              <Settings settings={settings} onChange={setSettings} />
+              <Settings settings={settings} updateInfo={updateInfo} onChange={setSettings} />
             )}
             {tab === 'logs' && <Logs logs={logs} />}
           </main>

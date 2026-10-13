@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, IpcApi, LogEntry, Profile, StatusPayload } from '@shared/types'
+import type { AppSettings, IpcApi, LogEntry, Profile, StatusPayload, UpdateInfoPayload } from '@shared/types'
 
 const api: IpcApi = {
   listProfiles: () => ipcRenderer.invoke('profiles:list'),
@@ -17,6 +17,8 @@ const api: IpcApi = {
   readClipboard: () => ipcRenderer.invoke('clipboard:read'),
   toggleSettings: (open?: boolean) => ipcRenderer.invoke('app:toggle-settings', open),
   reloadTg: () => ipcRenderer.invoke('app:reload-tg'),
+  checkForUpdates: () => ipcRenderer.invoke('app:check-updates'),
+  installUpdate: () => ipcRenderer.invoke('app:install-update'),
   onStatus: (cb: (s: StatusPayload) => void) => {
     const listener = (_e: Electron.IpcRendererEvent, s: StatusPayload): void => cb(s)
     ipcRenderer.on('status:update', listener)
@@ -36,6 +38,11 @@ const api: IpcApi = {
     const listener = (_e: Electron.IpcRendererEvent, count: number): void => cb(count)
     ipcRenderer.on('unread:count', listener)
     return () => ipcRenderer.removeListener('unread:count', listener)
+  },
+  onUpdateStatus: (cb: (info: UpdateInfoPayload) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, info: UpdateInfoPayload): void => cb(info)
+    ipcRenderer.on('update:status', listener)
+    return () => ipcRenderer.removeListener('update:status', listener)
   }
 }
 

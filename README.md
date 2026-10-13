@@ -121,17 +121,39 @@ npm run dist:linux
 - `release/Telegram Xray-<версия>.AppImage`
 - `release/tgxray_<версия>_amd64.deb`
 
-### Windows (NSIS-установщик)
+### Windows (NSIS-установщик и Portable)
 ```bash
-npm run dist:win
+npm run dist:win             # NSIS инсталлятор с поддержкой автообновления
+npm run dist:win:portable    # Портативный .exe без установки
 ```
 - `release/Telegram Xray Setup <версия>.exe`
+- `release/Telegram Xray <версия>.exe` (Portable)
 
 ### macOS (DMG)
 ```bash
 npm run dist:mac
 ```
 - `release/Telegram Xray-<версия>.dmg`
+
+---
+
+## Автообновление (GitHub Releases)
+
+В приложение интегрирован `electron-updater` с автоматической проверкой релизов из репозитория [azatkhafizov/tgxray](https://github.com/azatkhafizov/tgxray/releases):
+
+1. **Фоновая проверка**: при запуске упакованного приложения проверяется наличие свежего релиза.
+2. **Ручная проверка**: в оверлее **«⚙ Proxy & Settings» → «Settings»** доступна кнопка **«Check for Updates»**.
+3. **Бесшовное обновление**:
+   - При обнаружении релиза скачивается инсталлятор/дельта в фоне с индикатором прогресса в шапке.
+   - По завершении скачивания появляется кнопка **«🚀 Install vX.X.X»**, либо обновление применяется автоматически при закрытии приложения.
+
+### Публикация нового релиза разработчиком
+```bash
+# 1. Повысить версию в package.json (например, 0.2.0)
+# 2. Собрать и опубликовать в GitHub Releases с помощью GitHub Token:
+GH_TOKEN="ваш_github_token" npm run dist:linux -- --publish always
+GH_TOKEN="ваш_github_token" npm run dist:win -- --publish always
+```
 
 ---
 

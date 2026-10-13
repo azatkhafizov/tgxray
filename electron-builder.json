@@ -1,6 +1,11 @@
 {
   "appId": "com.tgxray.desktop",
   "productName": "Telegram Xray",
+  "publish": {
+    "provider": "github",
+    "owner": "azatkhafizov",
+    "repo": "tgxray"
+  },
   "directories": {
     "output": "release",
     "buildResources": "resources"

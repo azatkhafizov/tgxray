@@ -6,6 +6,7 @@ import { XrayManager } from './xray-manager'
 import { ConnectionManager } from './connection'
 import { registerIpc } from './ipc-handlers'
 import { TrayController } from './tray'
+import { AppUpdater } from './updater'
 
 const PARTITION = 'persist:tgxray'
 const TG_URL = 'https://web.telegram.org/k/'
@@ -38,6 +39,7 @@ let logger: Logger
 let store: ConfigStore
 let xray: XrayManager
 let conn: ConnectionManager
+let updater: AppUpdater
 let tray: TrayController | null = null
 let isSettingsOpen = false
 
@@ -273,7 +275,12 @@ async function bootstrap(): Promise<void> {
 
   registerIpc(store, conn, logger)
 
-  // IPC for toggling settings overlay
+  updater = new AppUpdater(logger)
+  updater.setListener((info) => {
+    mainWindow?.webContents.send('update:status', info)
+  })
+
+  // IPC for toggling settings overlay and updater
   const { ipcMain } = await import('electron')
   ipcMain.handle('app:toggle-settings', (_e, open?: boolean) => {
     toggleSettings(open)
@@ -281,6 +288,12 @@ async function bootstrap(): Promise<void> {
   })
   ipcMain.handle('app:reload-tg', () => {
     tgView?.webContents.reload()
+  })
+  ipcMain.handle('app:check-updates', () => {
+    return updater.checkForUpdates()
+  })
+  ipcMain.handle('app:install-update', () => {
+    updater.install()
   })
 
   xray.on('crashed', (err: Error) => logger.error('app', `xray crashed: ${err.message}`))
@@ -305,6 +318,13 @@ async function bootstrap(): Promise<void> {
   mainWindow = createMainWindow()
   tray = new TrayController(mainWindow, conn, logger)
   tray.init()
+
+  // Background check for updates in packaged release
+  if (app.isPackaged) {
+    setTimeout(() => {
+      void updater.checkForUpdates()
+    }, 5000)
+  }
 
   const lastProfile = store.getLastProfileId()
   if (lastProfile) {
