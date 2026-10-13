@@ -11,6 +11,22 @@ const PARTITION = 'persist:tgxray'
 const TG_URL = 'https://web.telegram.org/k/'
 const TOP_BAR_HEIGHT = 44
 
+// Single Instance Lock: prevent running multiple copies of the app
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // If user tries to launch a second instance, focus our main window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 // Set App User Model ID for native notifications on Windows 10/11
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.tgxray.desktop')
@@ -117,9 +133,93 @@ function createMainWindow(): BrowserWindow {
     return { action: 'allow' }
   })
 
+  // Setup unread message counter via DOM polling inside Telegram Web
+  const UNREAD_SCRIPT = `
+    (() => {
+      function getTelegramUnreadCount() {
+        let count = 0;
+        // 1. Web K
+        const badgesK = document.querySelectorAll('.chatlist-chat .dialog-subtitle-badge.unread');
+        if (badgesK.length > 0) {
+          badgesK.forEach(badge => {
+            const chatItem = badge.closest('.chatlist-chat');
+            const isMuted = chatItem?.classList.contains('is-muted') || 
+                            chatItem?.classList.contains('muted') ||
+                            badge.classList.contains('is-muted') ||
+                            badge.classList.contains('muted') ||
+                            chatItem?.querySelector('.dialog-title-details .icon-muted, .icon-muted-fill') !== null;
+            if (!isMuted) {
+              const val = parseInt(badge.textContent.trim(), 10);
+              if (!isNaN(val)) count += val;
+            }
+          });
+          return count;
+        }
+
+        // 2. Web A (standard + obfuscated CSS modules)
+        const badgesA = document.querySelectorAll(
+          '.chat-badge-transition span, [class*="chat-badge"] span, .ListItem.Chat .Badge, .chat-item-clickable .Badge'
+        );
+        if (badgesA.length > 0) {
+          badgesA.forEach(badge => {
+            const text = badge.textContent.trim();
+            if (!/^\\d+$/.test(text)) return;
+
+            const badgeContainer = badge.closest('.NT-X2xr9, [class*="chat-badge"], .Badge, .BadgeWrapper');
+            const chatItem = badge.closest('.chat-item-clickable, [data-peer-id], .ListItem');
+
+            const isMuted = badgeContainer?.classList.contains('yf73Yld8') ||
+                            badgeContainer?.classList.contains('muted') ||
+                            badge.classList.contains('RbmAYSe4') ||
+                            badge.classList.contains('muted') ||
+                            (chatItem && (
+                              chatItem.classList.contains('muted') ||
+                              chatItem.classList.contains('is-muted') ||
+                              chatItem.querySelector('i.icon-muted, .icon-muted, [class*="muted"]') !== null
+                            ));
+            if (!isMuted) {
+              const val = parseInt(text, 10);
+              if (!isNaN(val)) count += val;
+            }
+          });
+          return count;
+        }
+        return 0;
+      }
+      return getTelegramUnreadCount();
+    })()
+  `
+
+  let lastUnread = 0
+  const checkUnread = async () => {
+    if (!tgView || tgView.webContents.isDestroyed()) return
+    try {
+      const count = (await tgView.webContents.executeJavaScript(UNREAD_SCRIPT)) as number
+      if (typeof count === 'number' && count !== lastUnread) {
+        lastUnread = count
+        tray?.setUnreadCount(count)
+        mainWindow?.webContents.send('unread:count', count)
+
+        // Native badge count on macOS / Linux
+        app.setBadgeCount(count)
+
+        if (count > 0 && !win.isFocused()) {
+          if (process.platform === 'win32' || process.platform === 'linux') {
+            win.flashFrame(true)
+          } else if (process.platform === 'darwin') {
+            app.dock.bounce('informational')
+          }
+        }
+      }
+    } catch {
+      // Ignore if page is navigating or reloading
+    }
+  }
+
+  const unreadInterval = setInterval(checkUnread, 2000)
+
   // Flash frame / bounce dock on unread messages if window is not focused
   tgView.webContents.on('page-title-updated', (_e, title) => {
-    // Telegram Web changes title to e.g. "(3) Telegram" or "Telegram"
     const hasUnread = /^\(\d+\)/.test(title)
     if (hasUnread && !win.isFocused()) {
       if (process.platform === 'win32' || process.platform === 'linux') {
@@ -128,6 +228,7 @@ function createMainWindow(): BrowserWindow {
         app.dock.bounce('informational')
       }
     }
+    void checkUnread()
   })
 
   win.on('focus', () => {
@@ -140,6 +241,8 @@ function createMainWindow(): BrowserWindow {
     if (store.getSettings().minimizeToTray && tray && !quitting) {
       e.preventDefault()
       win.hide()
+    } else {
+      clearInterval(unreadInterval)
     }
   })
 
@@ -201,10 +304,12 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-app.whenReady().then(bootstrap).catch((err) => {
-  console.error('bootstrap failed', err)
-  app.quit()
-})
+if (gotTheLock) {
+  app.whenReady().then(bootstrap).catch((err) => {
+    console.error('bootstrap failed', err)
+    app.quit()
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

@@ -17,6 +17,7 @@ export function App(): JSX.Element {
   const [tab, setTab] = useState<Tab>('profiles')
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
   const [status, setStatus] = useState<StatusPayload>({ state: 'disconnected' })
+  const [unreadCount, setUnreadCount] = useState<number>(0)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -36,11 +37,15 @@ export function App(): JSX.Element {
     const offToggle = window.tgxray.onToggleSettings((open) => {
       setIsOverlayOpen(open)
     })
+    const offUnread = window.tgxray.onUnreadCount((count) => {
+      setUnreadCount(count)
+    })
 
     return () => {
       offStatus()
       offLog()
       offToggle()
+      offUnread()
     }
   }, [])
 
@@ -78,6 +83,21 @@ export function App(): JSX.Element {
           }}
         />
         <strong style={{ fontSize: 13, color: '#fff' }}>Telegram Xray</strong>
+        {unreadCount > 0 && (
+          <span
+            style={{
+              background: '#e74c3c',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '1px 7px',
+              borderRadius: 10,
+              lineHeight: '16px'
+            }}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
         <span style={{ fontSize: 12, opacity: 0.75, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {status.state}
           {status.externalIp ? ` (${status.externalIp})` : ''}

@@ -1,5 +1,6 @@
 import { app, Menu, Tray, nativeImage, type BrowserWindow } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import type { Logger } from './logger'
 import type { ConnectionManager } from './connection'
 
@@ -8,6 +9,7 @@ export class TrayController {
   private win: BrowserWindow
   private conn: ConnectionManager
   private logger: Logger
+  private unreadCount = 0
 
   constructor(win: BrowserWindow, conn: ConnectionManager, logger: Logger) {
     this.win = win
@@ -15,7 +17,25 @@ export class TrayController {
     this.logger = logger
   }
 
+  setUnreadCount(count: number): void {
+    if (this.unreadCount === count) return
+    this.unreadCount = count
+    this.refresh()
+  }
+
   private getIconPath(statusState: string): string {
+    const iconsDir = app.isPackaged
+      ? join(process.resourcesPath, 'icons')
+      : join(app.getAppPath(), 'resources', 'icons')
+
+    if (this.unreadCount > 0) {
+      const countLabel = this.unreadCount > 99 ? '99plus' : String(this.unreadCount)
+      const badgeIcon = join(iconsDir, 'badges', `${statusState}-${countLabel}.png`)
+      if (existsSync(badgeIcon)) {
+        return badgeIcon
+      }
+    }
+
     const iconName =
       statusState === 'connected'
         ? 'tray-connected.png'
@@ -25,10 +45,7 @@ export class TrayController {
             ? 'tray-error.png'
             : 'tray-disconnected.png'
 
-    if (app.isPackaged) {
-      return join(process.resourcesPath, 'icons', iconName)
-    }
-    return join(app.getAppPath(), 'resources', 'icons', iconName)
+    return join(iconsDir, iconName)
   }
 
   init(): void {
@@ -50,7 +67,12 @@ export class TrayController {
       this.tray.setImage(icon)
     }
 
-    const label =
+    // Native badge title on macOS
+    if (process.platform === 'darwin') {
+      this.tray.setTitle(this.unreadCount > 0 ? ` ${this.unreadCount}` : '')
+    }
+
+    const stateText =
       status.state === 'connected'
         ? `Connected${status.externalIp ? ` (${status.externalIp})` : ''}`
         : status.state === 'connecting'
@@ -58,17 +80,29 @@ export class TrayController {
           : status.state === 'error'
             ? `Error: ${status.message ?? 'unknown'}`
             : 'Disconnected'
-    const menu = Menu.buildFromTemplate([
-      { label, enabled: false },
+
+    const unreadLabel = this.unreadCount > 0 ? ` (${this.unreadCount} unread)` : ''
+    const tooltipText = `Telegram Xray — ${stateText}${unreadLabel}`
+
+    const menuItems: Electron.MenuItemConstructorOptions[] = [
+      { label: `Status: ${stateText}`, enabled: false }
+    ]
+
+    if (this.unreadCount > 0) {
+      menuItems.push({ label: `💬 Unread: ${this.unreadCount}`, enabled: false })
+    }
+
+    menuItems.push(
       { type: 'separator' },
       { label: 'Show window', click: () => this.showWindow() },
       { label: 'Connect', click: () => void this.conn.reconnect() },
       { label: 'Disconnect', click: () => void this.conn.disconnect() },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
-    ])
-    this.tray.setContextMenu(menu)
-    this.tray.setToolTip(`Telegram Xray — ${label}`)
+    )
+
+    this.tray.setContextMenu(Menu.buildFromTemplate(menuItems))
+    this.tray.setToolTip(tooltipText)
   }
 
   private showWindow(): void {

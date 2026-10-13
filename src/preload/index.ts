@@ -31,6 +31,11 @@ const api: IpcApi = {
     const listener = (_e: Electron.IpcRendererEvent, isOpen: boolean): void => cb(isOpen)
     ipcRenderer.on('settings:toggle', listener)
     return () => ipcRenderer.removeListener('settings:toggle', listener)
+  },
+  onUnreadCount: (cb: (count: number) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, count: number): void => cb(count)
+    ipcRenderer.on('unread:count', listener)
+    return () => ipcRenderer.removeListener('unread:count', listener)
   }
 }
 

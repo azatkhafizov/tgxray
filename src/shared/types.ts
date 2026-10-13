@@ -62,4 +62,5 @@ export interface IpcApi {
   onStatus: (cb: (s: StatusPayload) => void) => () => void
   onLog: (cb: (e: LogEntry) => void) => () => void
   onToggleSettings: (cb: (isOpen: boolean) => void) => () => void
+  onUnreadCount: (cb: (count: number) => void) => () => void
 }
