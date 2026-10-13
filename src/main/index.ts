@@ -1,0 +1,231 @@
+import { app, BrowserWindow, BrowserView, Menu, session, Notification } from 'electron'
+import { join } from 'path'
+import { ConfigStore } from './config-store'
+import { Logger } from './logger'
+import { XrayManager } from './xray-manager'
+import { ConnectionManager } from './connection'
+import { registerIpc } from './ipc-handlers'
+import { TrayController } from './tray'
+
+const PARTITION = 'persist:tgxray'
+const TG_URL = 'https://web.telegram.org/k/'
+const TOP_BAR_HEIGHT = 44
+
+// Set App User Model ID for native notifications on Windows 10/11
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.tgxray.desktop')
+}
+
+let mainWindow: BrowserWindow | null = null
+let tgView: BrowserView | null = null
+let logger: Logger
+let store: ConfigStore
+let xray: XrayManager
+let conn: ConnectionManager
+let tray: TrayController | null = null
+let isSettingsOpen = false
+
+function updateViewBounds(): void {
+  if (!mainWindow || !tgView) return
+  const [width, height] = mainWindow.getContentSize()
+  tgView.setBounds({
+    x: 0,
+    y: TOP_BAR_HEIGHT,
+    width,
+    height: Math.max(0, height - TOP_BAR_HEIGHT)
+  })
+}
+
+function loadRenderer(win: BrowserWindow): void {
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL']).catch(() => undefined)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html')).catch(() => undefined)
+  }
+}
+
+function setupPermissionsAndNotifications(): void {
+  const ses = session.fromPartition(PARTITION)
+
+  // Automatically grant notification and media permissions to Telegram Web
+  ses.setPermissionRequestHandler((webContents, permission, callback) => {
+    const url = webContents.getURL()
+    if (url.includes('telegram.org')) {
+      if (permission === 'notifications' || permission === 'media') {
+        return callback(true)
+      }
+    }
+    callback(false)
+  })
+
+  // Permission check handler for navigator.permissions.query
+  ses.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+    if (requestingOrigin.includes('telegram.org')) {
+      if (permission === 'notifications') return true
+    }
+    return false
+  })
+}
+
+function createMainWindow(): BrowserWindow {
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icons', 'icon.png')
+    : join(app.getAppPath(), 'resources', 'icons', 'icon.png')
+
+  // Remove top application menu (File, Edit, View, Window, Help)
+  Menu.setApplicationMenu(null)
+
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'Telegram Desktop (Xray)',
+    icon: iconPath,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  win.setMenuBarVisibility(false)
+  loadRenderer(win)
+
+  tgView = new BrowserView({
+    webPreferences: {
+      partition: PARTITION,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  win.addBrowserView(tgView)
+  updateViewBounds()
+  tgView.webContents.loadURL(TG_URL).catch(() => undefined)
+
+  // Forward clicks on notifications or telegram links to focus window
+  tgView.webContents.setWindowOpenHandler(({ url }) => {
+    // Open external links in default browser
+    if (!url.includes('telegram.org')) {
+      import('electron').then(({ shell }) => shell.openExternal(url)).catch(() => undefined)
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
+
+  // Flash frame / bounce dock on unread messages if window is not focused
+  tgView.webContents.on('page-title-updated', (_e, title) => {
+    // Telegram Web changes title to e.g. "(3) Telegram" or "Telegram"
+    const hasUnread = /^\(\d+\)/.test(title)
+    if (hasUnread && !win.isFocused()) {
+      if (process.platform === 'win32' || process.platform === 'linux') {
+        win.flashFrame(true)
+      } else if (process.platform === 'darwin') {
+        app.dock.bounce('informational')
+      }
+    }
+  })
+
+  win.on('focus', () => {
+    win.flashFrame(false)
+  })
+
+  win.on('resize', updateViewBounds)
+
+  win.on('close', (e) => {
+    if (store.getSettings().minimizeToTray && tray && !quitting) {
+      e.preventDefault()
+      win.hide()
+    }
+  })
+
+  return win
+}
+
+function toggleSettings(open?: boolean): void {
+  if (!mainWindow || !tgView) return
+  isSettingsOpen = open !== undefined ? open : !isSettingsOpen
+  if (isSettingsOpen) {
+    mainWindow.removeBrowserView(tgView)
+  } else {
+    mainWindow.addBrowserView(tgView)
+    updateViewBounds()
+  }
+  mainWindow.webContents.send('settings:toggle', isSettingsOpen)
+}
+
+async function bootstrap(): Promise<void> {
+  setupPermissionsAndNotifications()
+  logger = new Logger()
+  store = new ConfigStore()
+  await store.load()
+  xray = new XrayManager(logger)
+  conn = new ConnectionManager(logger, store, xray)
+
+  registerIpc(store, conn, logger)
+
+  // IPC for toggling settings overlay
+  const { ipcMain } = await import('electron')
+  ipcMain.handle('app:toggle-settings', (_e, open?: boolean) => {
+    toggleSettings(open)
+    return isSettingsOpen
+  })
+  ipcMain.handle('app:reload-tg', () => {
+    tgView?.webContents.reload()
+  })
+
+  xray.on('crashed', (err: Error) => logger.error('app', `xray crashed: ${err.message}`))
+  conn.on('status', (s) => {
+    mainWindow?.webContents.send('status:update', s)
+    if (s.state === 'connected') {
+      // Reload TG web when proxy connects successfully so it doesn't stay on error page
+      tgView?.webContents.loadURL(TG_URL).catch(() => undefined)
+    }
+  })
+  logger.on('log', (entry) => {
+    mainWindow?.webContents.send('log:update', entry)
+  })
+
+  mainWindow = createMainWindow()
+  tray = new TrayController(mainWindow, conn, logger)
+  tray.init()
+
+  const settings = store.getSettings()
+  if (settings.autoConnect) {
+    const last = store.getLastProfileId()
+    if (last) void conn.connect(last)
+  }
+}
+
+app.whenReady().then(bootstrap).catch((err) => {
+  console.error('bootstrap failed', err)
+  app.quit()
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    mainWindow = createMainWindow()
+  }
+})
+
+let quitting = false
+app.on('before-quit', (e) => {
+  if (quitting) return
+  quitting = true
+  e.preventDefault()
+  void conn.shutdown().finally(() => {
+    tray?.destroy()
+    app.exit(0)
+  })
+})
+
+process.on('SIGTERM', () => void conn?.shutdown().finally(() => app.exit(0)))
+process.on('SIGINT', () => void conn?.shutdown().finally(() => app.exit(0)))

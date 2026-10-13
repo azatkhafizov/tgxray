@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Production build & packager outputs
+dist/
+out/
+build/
+release/
+
+# Xray binaries downloaded via scripts/fetch-xray.ts
+resources/bin/win32/*
+resources/bin/darwin/*
+resources/bin/linux/*
+!resources/bin/**/.gitkeep
+resources/bin/*.zip
+
+# User data, configs and encryption keys
+*.enc
+tgxray-store.enc
+xray-active.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# OS metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Environment variables & local secrets
+.env
+.env.*
+!.env.example
+

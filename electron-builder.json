@@ -1,0 +1,47 @@
+{
+  "appId": "com.tgxray.desktop",
+  "productName": "Telegram Xray",
+  "directories": {
+    "output": "release",
+    "buildResources": "resources"
+  },
+  "files": [
+    "out/**/*",
+    "resources/icons/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/bin",
+      "to": "bin",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "resources/icons",
+      "to": "icons",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] }
+    ],
+    "icon": "resources/icons/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "mac": {
+    "target": [
+      { "target": "dmg", "arch": ["x64", "arm64"] }
+    ],
+    "icon": "resources/icons/icon.icns",
+    "category": "public.app-category.social-networking"
+  },
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "icon": "resources/icons/icon.png",
+    "category": "Network"
+  }
+}
