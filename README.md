@@ -86,7 +86,7 @@
 
 1. **Клонирование репозитория и установка зависимостей**:
    ```bash
-   git clone <URL_РЕПОЗИТОРИЯ>
+   git clone https://github.com/azatkhafizov/tgxray.git
    cd web_telegram_to_desktop_from_xray
    npm install
    ```
