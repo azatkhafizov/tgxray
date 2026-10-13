@@ -1,6 +1,6 @@
 {
   "name": "tgxray",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Desktop Telegram Web client routed through Xray (VLESS/Reality)",
   "main": "out/main/index.js",
   "author": {
@@ -8,7 +8,7 @@
     "email": "tgxray@example.com"
   },
   "license": "MIT",
-  "xrayVersion": "1.8.24",
+  "xrayVersion": "24.11.30",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

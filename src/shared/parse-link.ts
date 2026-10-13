@@ -39,7 +39,7 @@ function splitHostPort(authority: string): { address: string; port: number } {
 }
 
 function buildStreamSettings(params: Record<string, string>): Record<string, unknown> {
-  const rawType = (params.type || 'tcp').toLowerCase()
+  const rawType = (params.type || params.net || 'tcp').toLowerCase()
   // Support both 'xhttp' and 'splithttp'
   const network = rawType === 'splithttp' || rawType === 'xhttp' ? 'xhttp' : rawType
   const stream: Record<string, unknown> = { network }
@@ -54,14 +54,20 @@ function buildStreamSettings(params: Record<string, string>): Record<string, unk
     if (params.allowInsecure === '1' || params.allowInsecure === 'true') tls.allowInsecure = true
     stream.tlsSettings = tls
   } else if (security === 'reality') {
-    stream.security = 'reality'
-    const reality: Record<string, unknown> = {}
-    if (params.sni || params.host) reality.serverName = params.sni || params.host
-    if (params.fp) reality.fingerprint = params.fp
-    if (params.pbk) reality.publicKey = params.pbk
-    if (params.sid) reality.shortId = params.sid
-    if (params.spx) reality.spiderX = params.spx
-    stream.realitySettings = reality
+    const pubKey = params.pbk || params.publicKey || ''
+    if (pubKey) {
+      stream.security = 'reality'
+      const reality: Record<string, unknown> = {}
+      if (params.sni || params.host) reality.serverName = params.sni || params.host
+      if (params.fp) reality.fingerprint = params.fp
+      reality.publicKey = pubKey
+      if (params.sid || params.shortId) reality.shortId = params.sid || params.shortId || ''
+      if (params.spx || params.spiderX) reality.spiderX = params.spx || params.spiderX || ''
+      stream.realitySettings = reality
+    } else {
+      // If pbk is missing, don't generate broken realitySettings that crash Xray
+      stream.security = 'none'
+    }
   }
 
   if (network === 'ws') {
@@ -81,9 +87,16 @@ function buildStreamSettings(params: Record<string, string>): Record<string, unk
   } else if (network === 'h2') {
     stream.httpSettings = { path: params.path || '/', host: params.host ? [params.host] : undefined }
   } else if (network === 'tcp') {
-    if (params.headerType === 'http') {
+    const headerType = params.headerType || params.type
+    if (headerType === 'http') {
       stream.tcpSettings = {
-        header: { type: 'http', request: { path: [params.path || '/'], headers: params.host ? { Host: [params.host] } : {} } }
+        header: {
+          type: 'http',
+          request: {
+            path: [params.path || '/'],
+            headers: params.host ? { Host: [params.host] } : {}
+          }
+        }
       }
     }
   }
@@ -148,8 +161,10 @@ export function parseVmess(url: string): ParsedOutbound {
     ]
   }
   const params: Record<string, string> = {
-    security: String(json.tls ?? '') === 'tls' ? 'tls' : 'none',
-    type: String(json.net ?? 'tcp'),
+    security: String(json.tls ?? '') === 'tls' ? 'tls' : (String(json.security ?? '') || 'none'),
+    type: String(json.net ?? json.type ?? 'tcp'),
+    net: String(json.net ?? json.type ?? 'tcp'),
+    headerType: String(json.type ?? ''),
     host: String(json.host ?? ''),
     path: String(json.path ?? '/'),
     sni: String(json.sni ?? '')
